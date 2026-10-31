@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PAWPRINT — Cat or Dog, decided by AI</title>
+<meta name="description" content="A monochrome image classifier. Drop a photo, get cat or dog with a confidence score." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
+<style>
+:root{
+  --bg:#fff; --fg:#0a0a0a; --mute:#6b6b6b; --line:#0a0a0a; --soft:#f2f2f2; --inv-bg:#0a0a0a; --inv-fg:#fff;
+}
+[data-theme="dark"]{
+  --bg:#0a0a0a; --fg:#f5f5f5; --mute:#9a9a9a; --line:#f5f5f5; --soft:#161616; --inv-bg:#f5f5f5; --inv-fg:#0a0a0a;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--fg);font-family:'Space Grotesk',system-ui,sans-serif;line-height:1.5;transition:background .3s,color .3s;overflow-x:hidden}
+a{color:inherit}
+.mono{font-family:'JetBrains Mono',monospace;font-size:.75rem;letter-spacing:.08em;text-transform:uppercase}
+.serif{font-family:'Instrument Serif',serif;font-style:italic;font-weight:400}
+.wrap{max-width:1180px;margin:0 auto;padding:0 24px}
+
+/* nav */
+nav{position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--line)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:60px}
+.logo{font-weight:700;letter-spacing:.2em;text-decoration:none;font-size:.95rem;display:flex;align-items:center;gap:10px}
+.logo i{width:14px;height:14px;background:var(--fg);border-radius:50%;display:inline-block}
+nav ul{display:flex;gap:28px;list-style:none;align-items:center}
+nav ul a{text-decoration:none}
+nav ul a:hover{text-decoration:underline;text-underline-offset:4px}
+.btn{font:inherit;cursor:pointer;border:1px solid var(--line);background:transparent;color:var(--fg);padding:10px 18px;text-transform:uppercase;letter-spacing:.08em;font-size:.75rem;font-family:'JetBrains Mono',monospace;transition:.2s;text-decoration:none;display:inline-block}
+.btn:hover{background:var(--inv-bg);color:var(--inv-fg)}
+.btn.solid{background:var(--inv-bg);color:var(--inv-fg)}
+.btn.solid:hover{background:transparent;color:var(--fg)}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+@media(max-width:700px){nav ul li.hide-m{display:none}}
+
+/* hero */
+.hero{padding:80px 0 60px;border-bottom:1px solid var(--line);position:relative}
+.hero h1{font-size:clamp(3.2rem,11vw,9.5rem);line-height:.9;font-weight:700;letter-spacing:-.04em;text-transform:uppercase}
+.hero h1 .serif{text-transform:none;letter-spacing:-.02em;font-size:1.05em}
+.hero h1 .out{-webkit-text-stroke:2px var(--fg);color:transparent}
+.hero-row{display:flex;justify-content:space-between;gap:40px;margin-top:48px;flex-wrap:wrap;align-items:flex-end}
+.hero p{max-width:440px;color:var(--mute);font-size:1.05rem}
+.status{display:inline-flex;align-items:center;gap:10px;border:1px solid var(--line);padding:8px 14px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--mute)}
+.status.ok .dot{background:var(--fg);animation:pulse 1.6s infinite}
+.status.err .dot{background:transparent;border:1px solid var(--fg)}
+@keyframes pulse{50%{opacity:.25}}
+.marquee{border-bottom:1px solid var(--line);overflow:hidden;white-space:nowrap;background:var(--inv-bg);color:var(--inv-fg);padding:12px 0}
+.marquee div{display:inline-block;animation:slide 28s linear infinite}
+@keyframes slide{to{transform:translateX(-50%)}}
+
+/* tool */
+section{padding:90px 0;border-bottom:1px solid var(--line)}
+.sec-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:44px;gap:20px;flex-wrap:wrap}
+.sec-head h2{font-size:clamp(2rem,5vw,3.6rem);letter-spacing:-.03em;line-height:1}
+.grid2{display:grid;grid-template-columns:1fr 1fr;border:1px solid var(--line)}
+.grid2>div{padding:28px}
+.grid2>div+div{border-left:1px solid var(--line)}
+@media(max-width:860px){.grid2{grid-template-columns:1fr}.grid2>div+div{border-left:0;border-top:1px solid var(--line)}}
+.drop{height:380px;border:1px dashed var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:14px;cursor:pointer;position:relative;overflow:hidden;transition:.2s;background:var(--soft)}
+.drop.over{background:var(--inv-bg);color:var(--inv-fg)}
+.drop .big{font-size:3.4rem;line-height:1}
+.drop img,.drop video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:grayscale(1);transition:filter .4s}
+.drop:hover img{filter:grayscale(0)}
+.drop.has .hint{display:none}
+.tools{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+.scan{position:absolute;left:0;right:0;height:2px;background:var(--fg);box-shadow:0 0 18px var(--fg);top:0;display:none;z-index:3}
+.drop.scanning .scan{display:block;animation:scan 1.1s ease-in-out infinite alternate}
+@keyframes scan{to{top:100%}}
+.result{display:flex;flex-direction:column;height:100%;justify-content:space-between;gap:24px}
+.verdict{font-size:clamp(4rem,10vw,8rem);font-weight:700;line-height:.9;letter-spacing:-.05em;text-transform:uppercase;word-break:break-all}
+.verdict.empty{color:var(--mute);opacity:.35}
+.bar{height:14px;border:1px solid var(--line);position:relative;margin:8px 0 6px}
+.bar span{position:absolute;inset:0 auto 0 0;background:var(--fg);width:0;transition:width .8s cubic-bezier(.2,.8,.2,1)}
+.row{display:flex;justify-content:space-between}
+.hist{display:flex;gap:8px;flex-wrap:wrap;min-height:60px}
+.hist figure{width:60px;height:60px;position:relative;border:1px solid var(--line);overflow:hidden}
+.hist img{width:100%;height:100%;object-fit:cover;filter:grayscale(1)}
+.hist figcaption{position:absolute;bottom:0;left:0;right:0;background:var(--inv-bg);color:var(--inv-fg);font-size:.6rem;text-align:center;font-family:'JetBrains Mono',monospace;text-transform:uppercase}
+
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line)}
+.stats>div{padding:32px 24px;border-right:1px solid var(--line)}
+.stats>div:last-child{border-right:0}
+.stats b{font-size:clamp(2.2rem,5vw,4rem);letter-spacing:-.04em;display:block;line-height:1}
+@media(max-width:800px){.stats{grid-template-columns:1fr 1fr}.stats>div:nth-child(2){border-right:0}.stats>div:nth-child(-n+2){border-bottom:1px solid var(--line)}}
+
+/* steps */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid var(--line)}
+.steps>div{padding:32px;border-right:1px solid var(--line)}
+.steps>div:last-child{border-right:0}
+.steps h3{font-size:1.5rem;margin:14px 0 8px;letter-spacing:-.02em}
+.steps p{color:var(--mute)}
+@media(max-width:800px){.steps{grid-template-columns:1fr}.steps>div{border-right:0;border-bottom:1px solid var(--line)}}
+
+/* links */
+.links a{display:flex;justify-content:space-between;align-items:center;padding:22px 4px;border-top:1px solid var(--line);text-decoration:none;font-size:clamp(1.3rem,3vw,2rem);letter-spacing:-.02em;transition:.2s}
+.links a:last-child{border-bottom:1px solid var(--line)}
+.links a:hover{background:var(--inv-bg);color:var(--inv-fg);padding-left:20px;padding-right:20px}
+.links a span.mono{opacity:.7}
+
+footer{padding:40px 0;display:flex;justify-content:space-between;gap:20px;flex-wrap:wrap}
+.toast{position:fixed;bottom:24px;left:50%;transform:translate(-50%,100px);background:var(--inv-bg);color:var(--inv-fg);padding:12px 20px;transition:.3s;z-index:99;max-width:90vw}
+.toast.show{transform:translate(-50%,0)}
+.reveal{opacity:0;transform:translateY(24px);transition:.7s}
+.reveal.in{opacity:1;transform:none}
+</style>
+</head>
+<body>
+
+<nav>
+  <div class="wrap">
+    <a href="#top" class="logo"><i></i>PAWPRINT</a>
+    <ul class="mono">
+      <li class="hide-m"><a href="#lab">Lab</a></li>
+      <li class="hide-m"><a href="#model">Model</a></li>
+      <li class="hide-m"><a href="#how">How</a></li>
+      <li class="hide-m"><a href="#links">Links</a></li>
+      <li><button class="btn" id="themeBtn" aria-label="Toggle theme">◐ Invert</button></li>
+    </ul>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <p class="mono" style="margin-bottom:24px">Image classifier · v1.0 · MobileNetV2</p>
+    <h1>Cat<br/><span class="serif">or</span> <span class="out">Dog?</span></h1>
+    <div class="hero-row">
+      <p>Drop in any photo. A fine-tuned neural network looks at it for a fraction of a second and tells you who's in the picture — and how sure it is.</p>
+      <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+        <div class="status mono" id="status"><span class="dot"></span><span id="statusTxt">Loading model…</span></div>
+        <a href="#lab" class="btn solid">Try it ↓</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="marquee mono"><div id="marq"></div></div>
+
+<section id="lab">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <h2>The <span class="serif">lab</span></h2>
+      <span class="mono">01 / Upload → Analyse → Verdict</span>
+    </div>
+
+    <div class="grid2 reveal">
+      <div>
+        <div class="drop" id="drop" tabindex="0">
+          <div class="scan"></div>
+          <video id="cam" autoplay playsinline muted hidden></video>
+          <img id="preview" alt="" hidden />
+          <div class="hint">
+            <div class="big">+</div>
+            <p><b>Drag & drop</b> a photo here</p>
+            <p class="mono" style="color:var(--mute)">or click · or paste (Ctrl+V)</p>
+          </div>
+        </div>
+        <input type="file" id="file" accept="image/*" hidden />
+        <div class="tools">
+          <button class="btn" id="pickBtn">Choose file</button>
+          <button class="btn" id="camBtn">Use camera</button>
+          <button class="btn" id="snapBtn" hidden>Capture</button>
+          <button class="btn" id="resetBtn">Reset</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="result">
+          <div>
+            <p class="mono" style="color:var(--mute)">Verdict</p>
+            <div class="verdict empty" id="verdict">—</div>
+          </div>
+          <div>
+            <div class="row mono"><span id="confLbl">Confidence</span><span id="confVal">0.0%</span></div>
+            <div class="bar"><span id="confBar"></span></div>
+            <div class="row mono" style="color:var(--mute)"><span>Cat <b id="pCat" style="color:var(--fg)">–</b></span><span>Dog <b id="pDog" style="color:var(--fg)">–</b></span></div>
+          </div>
+          <div>
+            <div class="row mono" style="margin-bottom:10px"><span>History</span><a href="#" id="clearHist" style="color:var(--mute)">clear</a></div>
+            <div class="hist" id="hist"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="model">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <h2>Under the <span class="serif">hood</span></h2>
+      <span class="mono">02 / Numbers from training</span>
+    </div>
+    <div class="stats reveal">
+      <div><b>98.5%</b><span class="mono">Test accuracy</span></div>
+      <div><b>224²</b><span class="mono">Input pixels</span></div>
+      <div><b>2.2M</b><span class="mono">Parameters</span></div>
+      <div><b>1,200</b><span class="mono">Images used</span></div>
+    </div>
+    <p class="reveal" style="margin-top:28px;max-width:720px;color:var(--mute)">
+      Transfer learning on <b style="color:var(--fg)">MobileNetV2</b> pre-trained on ImageNet. The base was frozen for the first stage, then the last 30 layers were fine-tuned at a learning rate of 1e-5. Output is a single sigmoid neuron: below 0.5 is a cat, above is a dog.
+    </p>
+  </div>
+</section>
+
+<section id="how">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <h2>How it <span class="serif">works</span></h2>
+      <span class="mono">03 / Three steps</span>
+    </div>
+    <div class="steps reveal">
+      <div><span class="mono">01</span><h3>Resize</h3><p>Your photo is scaled to 224 × 224 pixels, right in your browser.</p></div>
+      <div><span class="mono">02</span><h3>Extract</h3><p>MobileNetV2 turns the image into 1,280 features describing shapes and textures.</p></div>
+      <div><span class="mono">03</span><h3>Decide</h3><p>A single sigmoid neuron outputs the probability that it's a dog.</p></div>
+    </div>
+  </div>
+</section>
+
+<section id="links">
+  <div class="wrap">
+    <div class="sec-head reveal">
+      <h2>Go <span class="serif">deeper</span></h2>
+      <span class="mono">04 / Resources</span>
+    </div>
+    <div class="links reveal">
+      <a href="https://www.tensorflow.org/js" target="_blank" rel="noopener"><span>TensorFlow.js</span><span class="mono">Run models in browser ↗</span></a>
+      <a href="https://keras.io/api/applications/mobilenet/" target="_blank" rel="noopener"><span>Keras · MobileNetV2</span><span class="mono">Model docs ↗</span></a>
+      <a href="https://arxiv.org/abs/1801.04381" target="_blank" rel="noopener"><span>MobileNetV2 paper</span><span class="mono">arXiv 1801.04381 ↗</span></a>
+      <a href="https://www.tensorflow.org/tutorials/images/transfer_learning" target="_blank" rel="noopener"><span>Transfer learning guide</span><span class="mono">Tutorial ↗</span></a>
+      <a href="https://colab.research.google.com/" target="_blank" rel="noopener"><span>Google Colab</span><span class="mono">Train your own ↗</span></a>
+      <a href="https://github.com/" target="_blank" rel="noopener"><span>GitHub</span><span class="mono">Host the code ↗</span></a>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <footer class="mono">
+    <span>© 2026 PAWPRINT</span>
+    <span style="color:var(--mute)">Images never leave your device.</span>
+    <a href="#top">Back to top ↑</a>
+  </footer>
+</div>
+
+<div class="toast mono" id="toast"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
